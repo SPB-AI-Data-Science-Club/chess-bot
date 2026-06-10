@@ -400,3 +400,12 @@ $(function() {
 });
 /* init captures on load */
 updateCaptures();
+
+// Mobile: while a game is active, touches that start on the board must
+// drag pieces, never scroll the page (covers older browsers where
+// touch-action alone is not enough).
+document.addEventListener('touchmove', function(e) {
+  if (state.active && e.target.closest && e.target.closest('#chessboard')) {
+    e.preventDefault();
+  }
+}, { passive: false });

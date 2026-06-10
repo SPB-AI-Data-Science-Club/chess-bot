@@ -475,3 +475,24 @@ body {
   margin-top: .55rem;
   min-height: 2.2em;
 }
+
+/* ── Mobile: board first and big, no page scroll while playing ──────── */
+@media (max-width: 860px) {
+  body { overscroll-behavior: none; }
+  .main {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: .75rem .75rem 2rem;
+  }
+  .board-area { order: -1; }
+  .board-wrapper { max-width: 100%; }
+  .board-row { gap: .35rem; }
+  .eval-bar { width: 12px; }
+  /* The board owns its touches: dragging a piece never scrolls the page */
+  .board-row, #chessboard { touch-action: none; }
+  .player-card { min-height: 42px; padding: .4rem .6rem; }
+  .setup-panel { order: 1; }
+  .history-panel { order: 2; }
+  .move-list { max-height: 200px; overflow-y: auto; }
+  .site-header { padding: 0 1rem; }
+}
