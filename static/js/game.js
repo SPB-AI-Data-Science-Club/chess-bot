@@ -78,7 +78,9 @@ function onDrop(source, target) {
 
   if (game.game_over()) {
     setBusy(false);
-    handleGameOver();
+    const [winner, reason] = clientOutcome();
+    if (winner) updateEvalBar(winner === 'White' ? 10000 : -10000);
+    handleGameOver(winner, reason);
     return;
   }
 
@@ -265,23 +267,37 @@ function renderMoveHistory() {
   $moveList[0].scrollTop = $moveList[0].scrollHeight;
 }
 
+
+// Outcome of the current chess.js position. After a game-ending move the
+// side to move is the one with no escape, so on checkmate the OTHER side won.
+function clientOutcome() {
+  if (game.in_checkmate()) {
+    return [game.turn() === 'w' ? 'Black' : 'White', 'checkmate'];
+  }
+  if (game.in_stalemate())              return [null, 'stalemate'];
+  if (game.insufficient_material())     return [null, 'insufficient material'];
+  if (game.in_threefold_repetition())   return [null, 'threefold repetition'];
+  return [null, 'the fifty-move rule'];
+}
+
 // ── Game Over ─────────────────────────────────────────────────────────
 function handleGameOver(winner, reason) {
   state.active = false;
   state.busy   = false;
 
-  let title = 'Draw';
-  let sub   = reason ? `Drawn by ${reason}.` : '';
+  let title, sub;
   if (winner === 'White' || winner === 'Black') {
     const youWon = (winner.toLowerCase() === state.playerColor);
     title = youWon ? 'You Win!' : 'Stockfish Wins';
-    sub   = reason === 'checkmate'
-      ? (youWon ? 'You delivered checkmate.' : 'You were checkmated.')
-      : `Won by ${reason}.`;
+    sub   = `${youWon ? 'You win' : 'Stockfish wins'} by ${reason || 'resignation'}.`;
+  } else {
+    title = 'Draw';
+    sub   = `Draw by ${reason || 'agreement'}.`;
   }
 
   $modalTitle.text(title);
   $modalSub.text(sub);
+  $status.html(`<span>${title === 'Draw' ? 'Draw' : title} - ${reason || ''}</span>`);
   $modal.removeClass('hidden');
 }
 
