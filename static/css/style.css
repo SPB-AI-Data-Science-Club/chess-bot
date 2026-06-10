@@ -350,43 +350,128 @@ body {
 .thinking     { color: var(--burgundy-l); font-style: italic; animation: pulse 1s ease-in-out infinite; }
 .status-error { color: #f87171; font-size: .85rem; }
 
-/* ── Captured pieces + material tracker ─────────────────────────────── */
-.capture-bar {
+
+/* ── Player cards (chess.com style) ─────────────────────────────────── */
+.player-card {
   display: flex;
   align-items: center;
-  gap: .6rem;
-  padding: .45rem .75rem;
+  gap: .7rem;
+  padding: .5rem .7rem;
   background: var(--surface, #141414);
   border: 1px solid #222;
   border-radius: 8px;
-  min-height: 40px;
+  min-height: 48px;
 }
 #captureTop    { margin-bottom: .6rem; }
 #captureBottom { margin-top: .6rem; }
-.cap-name {
-  font-size: .72rem;
+
+.player-avatar {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .8rem; font-weight: 800;
+  flex-shrink: 0;
+}
+.engine-avatar { background: #1d3a5f; color: #8db8e8; }
+.you-avatar    { background: #3d001f; color: #d678a8; }
+
+.player-info { flex: 1; display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.player-name {
+  font-size: .82rem;
   font-weight: 700;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  color: #777;
-  min-width: 72px;
+  color: #ccc;
+  white-space: nowrap;
 }
 .cap-pieces {
-  flex: 1;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   line-height: 1;
-  letter-spacing: .06em;
+  letter-spacing: .05em;
   color: #d6d6d6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.cap-none {
-  font-size: .72rem;
-  color: #444;
-  letter-spacing: .02em;
-  text-transform: none;
-}
+.cap-none { font-size: .7rem; color: #444; }
 .cap-score {
   font-family: 'JetBrains Mono', monospace;
   font-size: .85rem;
   font-weight: 600;
   color: #4ade80;
+  flex-shrink: 0;
+}
+
+/* ── Eval bar ───────────────────────────────────────────────────────── */
+.board-row { display: flex; gap: .6rem; align-items: stretch; }
+.board-row #chessboard { flex: 1; min-width: 0; }
+.eval-bar {
+  width: 18px;
+  border-radius: 5px;
+  background: #2b2b2b;          /* black share */
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #333;
+  flex-shrink: 0;
+}
+.eval-white {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 50%;
+  background: #e8e8e8;          /* white share rises from the bottom */
+  transition: height .5s cubic-bezier(.4,0,.2,1);
+}
+.eval-label {
+  position: absolute;
+  bottom: 4px; left: 0; right: 0;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .55rem;
+  font-weight: 700;
+  color: #555;
+  z-index: 1;
+}
+.eval-label.eval-black-lead { top: 4px; bottom: auto; color: #999; }
+
+/* ── ELO slider ─────────────────────────────────────────────────────── */
+.elo-slider-box {
+  background: var(--surface-2, #1a1a1a);
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+.elo-slider-head {
+  display: flex;
+  align-items: baseline;
+  gap: .6rem;
+  margin-bottom: .6rem;
+}
+.elo-slider-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #c4006a;
+}
+.elo-slider-name {
+  font-size: .8rem;
+  font-weight: 700;
+  color: #ccc;
+}
+.elo-slider-box input[type=range] {
+  width: 100%;
+  accent-color: #660033;
+  cursor: pointer;
+}
+.elo-slider-limits {
+  display: flex;
+  justify-content: space-between;
+  font-size: .65rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: #555;
+  margin-top: .15rem;
+}
+.elo-slider-desc {
+  font-size: .74rem;
+  color: #999;
+  line-height: 1.55;
+  margin-top: .55rem;
+  min-height: 2.2em;
 }

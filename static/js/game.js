@@ -97,6 +97,7 @@ function onDrop(source, target) {
     game.load(data.fen);
     board.position(data.fen, true);   // animated slide
     updateCaptures();
+    updateEvalBar(data.eval_cp);
 
     if (data.engine_move) {
       const from = data.engine_move.slice(0, 2);
@@ -184,6 +185,46 @@ function setBusy(busy) {
   }
 }
 
+
+// ── ELO slider ────────────────────────────────────────────────────────
+const ELO_TIERS = [
+  [400,  'Just Learning',  'Mostly random moves. A fun first opponent.'],
+  [800,  'Casual',         'Knows the rules, blunders often.'],
+  [1200, 'Improver',       'Solid basics with frequent mistakes.'],
+  [1600, 'Club Player',    'Calibrated engine strength. A real fight.'],
+  [2000, 'Tournament',     'Punishes inaccuracies quickly.'],
+  [2400, 'Master',         'Near-flawless play.'],
+  [3000, 'Grandmaster',    'Only the engine\'s rare slips give you chances.'],
+  [3600, 'Full Strength',  'The limiter is off. Good luck.'],
+];
+
+function eloTier(elo) {
+  let tier = ELO_TIERS[0];
+  for (const t of ELO_TIERS) if (elo >= t[0] - 200) tier = t;
+  return tier;
+}
+
+function updateEloLabel() {
+  const elo  = parseInt($('#eloSlider').val(), 10);
+  const tier = eloTier(elo);
+  $('#eloValue').text(elo);
+  $('#eloName').text(tier[1]);
+  $('#eloDesc').text(tier[2]);
+}
+$('#eloSlider').on('input', updateEloLabel);
+updateEloLabel();
+
+// ── Eval bar (white-POV centipawns -> bar share) ──────────────────────
+function updateEvalBar(cp) {
+  if (typeof cp !== 'number') return;
+  // Logistic squash: +-1000cp maps to ~92/8 split
+  const share = 100 / (1 + Math.pow(10, -cp / 800));
+  const fromBottom = state.playerColor === 'white' ? share : 100 - share;
+  $('#evalWhite').css('height', fromBottom.toFixed(1) + '%');
+  const pawns = Math.abs(cp) >= 9500 ? 'M' : (cp / 100).toFixed(1).replace('-', '');
+  $('#evalLabel').text(pawns).toggleClass('eval-black-lead', cp < 0);
+}
+
 // ── Status ────────────────────────────────────────────────────────────
 function updateStatus(s) {
   const map = {
@@ -230,14 +271,17 @@ function handleGameOver(winner, reason) {
   state.busy   = false;
 
   let title = 'Draw';
-  if (winner === 'White') {
-    title = state.playerColor === 'white' ? 'You Win!' : 'Engine Wins';
-  } else if (winner === 'Black') {
-    title = state.playerColor === 'black' ? 'You Win!' : 'Engine Wins';
+  let sub   = reason ? `Drawn by ${reason}.` : '';
+  if (winner === 'White' || winner === 'Black') {
+    const youWon = (winner.toLowerCase() === state.playerColor);
+    title = youWon ? 'You Win!' : 'Stockfish Wins';
+    sub   = reason === 'checkmate'
+      ? (youWon ? 'You delivered checkmate.' : 'You were checkmated.')
+      : `Won by ${reason}.`;
   }
 
   $modalTitle.text(title);
-  $modalSub.text(reason ? `Game ended by ${reason}` : '');
+  $modalSub.text(sub);
   $modal.removeClass('hidden');
 }
 
@@ -262,7 +306,7 @@ function showSetup() {
 
 // ── Start Game ────────────────────────────────────────────────────────
 function startGame() {
-  state.elo         = parseInt($('.elo-btn.active').data('elo'), 10) || 1600;
+  state.elo         = parseInt($('#eloSlider').val(), 10) || 1600;
   state.playerColor = $('.color-btn.active').data('color') || 'white';
   state.moveHistory = [];
   state.active      = false;
@@ -272,7 +316,7 @@ function startGame() {
   $modal.addClass('hidden');
   $setup.addClass('hidden');            // Hide difficulty/color/start during game
   $ingame.removeClass('hidden');        // Show status/hint/new-game during game
-  $eloDisplay.text(`ELO ${state.elo} - Playing as ${state.playerColor}`);
+  $eloDisplay.text(`Stockfish ${state.elo} - you play ${state.playerColor}`);
   updateStatus('starting');
 
   board = Chessboard('chessboard', boardConfig());
@@ -292,6 +336,7 @@ function startGame() {
 
     game.load(data.fen);
     updateCaptures();
+    updateEvalBar(data.eval_cp);
     board.position(data.fen);
     state.active = true;
 

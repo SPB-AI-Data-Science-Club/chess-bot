@@ -1,4 +1,5 @@
 import os
+import random
 import shutil
 import chess
 import chess.engine
@@ -6,76 +7,134 @@ from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
-# Find Stockfish — check env var, system PATH, then common install locations
+# Find Stockfish: env var, system PATH, then the usual install location
 ENGINE_PATH = (
     os.environ.get("STOCKFISH_PATH") or
     shutil.which("stockfish") or
     "/usr/games/stockfish"
 )
 
-ELO_LEVELS = {
-    1320: {"name": "Beginner",     "desc": "The engine's gentlest setting."},
-    1600: {"name": "Intermediate", "desc": "Casual club-level strength."},
-    2000: {"name": "Advanced",     "desc": "Strong tournament player."},
-    2500: {"name": "Expert",       "desc": "Near master-level. Good luck."},
+# The slider runs 100..3600. Stockfish's calibrated range is narrower,
+# so the ends are emulated:
+#   below ENGINE_MIN_ELO  -> engine at minimum strength, blended with
+#                            random legal moves (more random = weaker)
+#   above ENGINE_MAX_ELO  -> limiter off, full engine strength
+ENGINE_MIN_ELO = 1320
+ENGINE_MAX_ELO = 3190
+SLIDER_MIN     = 100
+SLIDER_MAX     = 3600
+
+TERMINATION_LABELS = {
+    chess.Termination.CHECKMATE:             "checkmate",
+    chess.Termination.STALEMATE:             "stalemate",
+    chess.Termination.INSUFFICIENT_MATERIAL: "insufficient material",
+    chess.Termination.SEVENTYFIVE_MOVES:     "the 75-move rule",
+    chess.Termination.FIVEFOLD_REPETITION:   "fivefold repetition",
+    chess.Termination.FIFTY_MOVES:           "the fifty-move rule",
+    chess.Termination.THREEFOLD_REPETITION:  "threefold repetition",
 }
 
-THINK_TIME = {1320: 0.05, 1600: 0.15, 2000: 0.3, 2500: 0.5}
+
+def clamp_elo(elo: int) -> int:
+    return max(SLIDER_MIN, min(SLIDER_MAX, elo))
+
+
+def think_time(elo: int) -> float:
+    """Weaker settings answer fast; full strength thinks longer."""
+    if elo >= ENGINE_MAX_ELO:
+        return 0.6
+    return 0.05 + 0.35 * (elo - SLIDER_MIN) / (ENGINE_MAX_ELO - SLIDER_MIN)
+
+
+def eval_to_cp(score: chess.engine.PovScore) -> int:
+    """White-POV centipawns; mate scores saturate at +/-10000."""
+    cp = score.white().score(mate_score=10000)
+    return max(-10000, min(10000, cp if cp is not None else 0))
 
 
 def engine_move(fen: str, elo: int) -> tuple:
-    """Return (uci_str, san_str) for Stockfish's chosen move."""
+    """Return (uci, san, eval_cp) for the engine's reply at slider strength."""
+    elo   = clamp_elo(elo)
+    board = chess.Board(fen)
+
+    with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
+        if elo >= ENGINE_MAX_ELO:
+            engine.configure({"UCI_LimitStrength": False})
+        else:
+            engine.configure({
+                "UCI_LimitStrength": True,
+                "UCI_Elo": max(ENGINE_MIN_ELO, elo),
+            })
+
+        result = engine.play(board, chess.engine.Limit(time=think_time(elo)))
+        move = result.move
+
+        # Below the engine's calibrated floor, mix in random legal moves.
+        # At 100 ELO most moves are random; at 1319 almost none are.
+        if elo < ENGINE_MIN_ELO:
+            p_random = (ENGINE_MIN_ELO - elo) / (ENGINE_MIN_ELO - SLIDER_MIN) * 0.85
+            if random.random() < p_random:
+                move = random.choice(list(board.legal_moves))
+
+        san = board.san(move)
+        board.push(move)
+
+        # Quick eval of the resulting position for the eval bar
+        info = engine.analyse(board, chess.engine.Limit(depth=10))
+        cp   = eval_to_cp(info["score"])
+
+        return move.uci(), san, cp
+
+
+def position_eval(fen: str) -> int:
     board = chess.Board(fen)
     with chess.engine.SimpleEngine.popen_uci(ENGINE_PATH) as engine:
-        # Clamp ELO to the range this Stockfish binary actually accepts
-        elo_opt  = engine.options.get("UCI_Elo")
-        min_elo  = int(elo_opt.min) if elo_opt and elo_opt.min is not None else 1320
-        max_elo  = int(elo_opt.max) if elo_opt and elo_opt.max is not None else 3190
-        clamped  = max(min_elo, min(max_elo, elo))
-        engine.configure({"UCI_LimitStrength": True, "UCI_Elo": clamped})
-        result = engine.play(board, chess.engine.Limit(time=THINK_TIME.get(elo, 0.1)))
-        uci = result.move.uci()
-        san = board.san(result.move)
-        return uci, san
+        info = engine.analyse(board, chess.engine.Limit(depth=10))
+        return eval_to_cp(info["score"])
 
 
 def board_status(board: chess.Board) -> dict:
-    if not board.is_game_over():
+    outcome = board.outcome(claim_draw=False)
+    if outcome is None:
         return {"game_over": False}
-    result = board.result()
-    reason = "checkmate" if board.is_checkmate() else \
-             "stalemate" if board.is_stalemate() else \
-             "insufficient material" if board.is_insufficient_material() else \
-             "repetition" if board.is_repetition() else \
-             "fifty-move rule" if board.is_fifty_moves() else "draw"
     winner = None
-    if result == "1-0":
+    if outcome.winner is chess.WHITE:
         winner = "White"
-    elif result == "0-1":
+    elif outcome.winner is chess.BLACK:
         winner = "Black"
-    return {"game_over": True, "result": result, "winner": winner, "reason": reason}
+    return {
+        "game_over": True,
+        "result":    outcome.result(),
+        "winner":    winner,
+        "reason":    TERMINATION_LABELS.get(outcome.termination,
+                                            outcome.termination.name.lower()),
+    }
 
 
 @app.route("/")
 def index():
-    return render_template("index.html", elo_levels=ELO_LEVELS)
+    return render_template("index.html",
+                           slider_min=SLIDER_MIN, slider_max=SLIDER_MAX,
+                           default_elo=1600)
 
 
 @app.route("/api/new_game", methods=["POST"])
 def new_game():
     data = request.get_json(force=True)
-    elo = int(data.get("elo", 1600))
+    elo = clamp_elo(int(data.get("elo", 1600)))
     player_color = data.get("color", "white")
 
     board = chess.Board()
-    resp = {"fen": board.fen(), "elo": elo, "player_color": player_color, "game_over": False}
+    resp = {"fen": board.fen(), "elo": elo, "player_color": player_color,
+            "game_over": False, "eval_cp": 20}
 
     if player_color == "black":
-        uci, san = engine_move(board.fen(), elo)
+        uci, san, cp = engine_move(board.fen(), elo)
         board.push(chess.Move.from_uci(uci))
-        resp["fen"]          = board.fen()
-        resp["engine_move"]  = uci
-        resp["engine_san"]   = san
+        resp["fen"]         = board.fen()
+        resp["engine_move"] = uci
+        resp["engine_san"]  = san
+        resp["eval_cp"]     = cp
 
     return jsonify(resp)
 
@@ -85,7 +144,7 @@ def make_move():
     data     = request.get_json(force=True)
     fen      = data.get("fen")
     move_uci = data.get("move")
-    elo      = int(data.get("elo", 1600))
+    elo      = clamp_elo(int(data.get("elo", 1600)))
 
     board = chess.Board(fen)
 
@@ -101,16 +160,18 @@ def make_move():
 
     status = board_status(board)
     if status["game_over"]:
-        return jsonify({"fen": board.fen(), **status})
+        return jsonify({"fen": board.fen(),
+                        "eval_cp": position_eval(board.fen()), **status})
 
-    uci, san = engine_move(board.fen(), elo)
+    uci, san, cp = engine_move(board.fen(), elo)
     board.push(chess.Move.from_uci(uci))
     status = board_status(board)
 
     return jsonify({
-        "fen":          board.fen(),
-        "engine_move":  uci,
-        "engine_san":   san,
+        "fen":         board.fen(),
+        "engine_move": uci,
+        "engine_san":  san,
+        "eval_cp":     cp,
         **status,
     })
 
