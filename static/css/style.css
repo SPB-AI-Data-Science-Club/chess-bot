@@ -349,3 +349,44 @@ body {
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
 .thinking     { color: var(--burgundy-l); font-style: italic; animation: pulse 1s ease-in-out infinite; }
 .status-error { color: #f87171; font-size: .85rem; }
+
+/* ── Captured pieces + material tracker ─────────────────────────────── */
+.capture-bar {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .45rem .75rem;
+  background: var(--surface, #141414);
+  border: 1px solid #222;
+  border-radius: 8px;
+  min-height: 40px;
+}
+#captureTop    { margin-bottom: .6rem; }
+#captureBottom { margin-top: .6rem; }
+.cap-name {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #777;
+  min-width: 72px;
+}
+.cap-pieces {
+  flex: 1;
+  font-size: 1.25rem;
+  line-height: 1;
+  letter-spacing: .06em;
+  color: #d6d6d6;
+}
+.cap-none {
+  font-size: .72rem;
+  color: #444;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+.cap-score {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .85rem;
+  font-weight: 600;
+  color: #4ade80;
+}

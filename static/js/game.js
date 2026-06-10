@@ -69,6 +69,7 @@ function onDrop(source, target) {
 
   const fenBefore = game.fen();  // FEN before player's move (what server needs)
   const move = game.move({ from: source, to: target, promotion: 'q' });
+  if (move) updateCaptures();
   if (move === null) return 'snapback';
 
   highlightMove(source, target);
@@ -95,6 +96,7 @@ function onDrop(source, target) {
 
     game.load(data.fen);
     board.position(data.fen, true);   // animated slide
+    updateCaptures();
 
     if (data.engine_move) {
       const from = data.engine_move.slice(0, 2);
@@ -115,6 +117,59 @@ function onDrop(source, target) {
     setBusy(false);
     updateStatus('error');
   });
+}
+
+
+// ── Captured pieces + material tracker (chess.com style) ─────────────
+const PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+const INITIAL_COUNTS = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+const GLYPHS = {
+  w: { p: '\u2659', n: '\u2658', b: '\u2657', r: '\u2656', q: '\u2655' },
+  b: { p: '\u265F', n: '\u265E', b: '\u265D', r: '\u265C', q: '\u265B' },
+};
+
+function countPieces(fen) {
+  const placement = fen.split(' ')[0];
+  const counts = { w: { p:0,n:0,b:0,r:0,q:0 }, b: { p:0,n:0,b:0,r:0,q:0 } };
+  for (const ch of placement) {
+    const lower = ch.toLowerCase();
+    if (PIECE_VALUES[lower] !== undefined) {
+      counts[ch === lower ? 'b' : 'w'][lower]++;
+    }
+  }
+  return counts;
+}
+
+// Pieces of `color` that have left the board (captured by the opponent)
+function capturedFrom(counts, color) {
+  const out = [];
+  let value = 0;
+  for (const t of ['p', 'n', 'b', 'r', 'q']) {
+    const taken = INITIAL_COUNTS[t] - counts[color][t];
+    for (let i = 0; i < taken; i++) out.push(GLYPHS[color][t]);
+    if (taken > 0) value += taken * PIECE_VALUES[t];
+  }
+  return { glyphs: out.join(''), value };
+}
+
+function updateCaptures() {
+  const counts = countPieces(game.fen());
+  const byWhite = capturedFrom(counts, 'b');   // white has taken these black pieces
+  const byBlack = capturedFrom(counts, 'w');
+  const diff = byWhite.value - byBlack.value;  // >0 means white leads on material
+
+  // Bottom bar is always the player, top bar the engine
+  const playerIsWhite = state.playerColor === 'white';
+  const bottom = playerIsWhite ? byWhite : byBlack;
+  const top    = playerIsWhite ? byBlack : byWhite;
+  const bottomLead = playerIsWhite ? diff : -diff;
+
+  $('#capBotName').text('You');
+  $('#capTopName').text('Stockfish');
+  $('#capBotPieces').html(bottom.glyphs || '<span class="cap-none">no captures</span>');
+  $('#capTopPieces').html(top.glyphs || '<span class="cap-none">no captures</span>');
+  $('#capBotScore').text(bottomLead > 0 ? '+' + bottomLead : '');
+  $('#capTopScore').text(bottomLead < 0 ? '+' + (-bottomLead) : '');
 }
 
 // ── Busy state (engine thinking) ──────────────────────────────────────
@@ -236,6 +291,7 @@ function startGame() {
     if (data.error) throw new Error(data.error);
 
     game.load(data.fen);
+    updateCaptures();
     board.position(data.fen);
     state.active = true;
 
@@ -297,3 +353,5 @@ $(function() {
     orientation: 'white',
   });
 });
+/* init captures on load */
+updateCaptures();
