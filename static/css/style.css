@@ -288,8 +288,7 @@ body {
 #chessboard .black-3c85d { background-color: var(--black-sq) !important; }
 
 /* Highlight squares */
-.highlight-white { box-shadow: inset 0 0 0 4px rgba(255,255,100,0.7); }
-.highlight-black { box-shadow: inset 0 0 0 4px rgba(255,255,100,0.7); }
+.highlight-move  { box-shadow: inset 0 0 0 4px rgba(255,255,100,0.7); }
 .hint-square     { box-shadow: inset 0 0 0 6px var(--hint) !important; }
 
 /* ── Move History ───────────────────────────────────────────────────── */
@@ -346,7 +345,7 @@ body {
 /* ── Utilities ──────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
-/* ── Thinking Indicator ─────────────────────────────────────────────── */
-.thinking { color: var(--burgundy-l); font-style: italic; }
+/* ── Status indicators ──────────────────────────────────────────────── */
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
-.thinking { animation: pulse 1s ease-in-out infinite; }
+.thinking     { color: var(--burgundy-l); font-style: italic; animation: pulse 1s ease-in-out infinite; }
+.status-error { color: #f87171; font-size: .85rem; }

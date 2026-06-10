@@ -5,9 +5,10 @@ let board = null;
 let game  = new Chess();
 
 let state = {
-  elo:         1200,
+  elo:         1600,
   playerColor: 'white',
   active:      false,
+  busy:        false,   // true while engine is computing — blocks all moves
   moveHistory: [],
   hintSquare:  null,
 };
@@ -17,20 +18,20 @@ const $status      = $('#statusText');
 const $moveList    = $('#moveList');
 const $eloDisplay  = $('#eloDisplay');
 const $ingame      = $('#ingameControls');
+const $setup       = $('#setupSection');
 const $modal       = $('#modalOverlay');
 const $modalTitle  = $('#modalTitle');
 const $modalSub    = $('#modalSub');
 
 // ── Highlight helpers ─────────────────────────────────────────────────
 function removeHighlights() {
-  $('#chessboard .square-55d63').removeClass('highlight-white highlight-black hint-square');
+  $('#chessboard .square-55d63').removeClass('highlight-move hint-square');
 }
 
 function highlightMove(from, to) {
   removeHighlights();
-  const colorClass = game.turn() === 'w' ? 'highlight-white' : 'highlight-black';
-  $(`#chessboard .square-${from}`).addClass(colorClass);
-  $(`#chessboard .square-${to}`).addClass(colorClass);
+  $(`#chessboard .square-${from}`).addClass('highlight-move');
+  $(`#chessboard .square-${to}`).addClass('highlight-move');
 }
 
 function showHint(square) {
@@ -53,68 +54,90 @@ function boardConfig() {
 }
 
 function onDragStart(source, piece) {
-  if (!state.active)           return false;
-  if (game.game_over())        return false;
+  // Block drag if game not active, engine is thinking, or it's not our turn
+  if (!state.active || state.busy) return false;
+  if (game.game_over())            return false;
   const myColor = state.playerColor === 'white' ? 'w' : 'b';
-  if (game.turn() !== myColor) return false;
+  if (game.turn() !== myColor)     return false;
   if (piece.charAt(0) !== myColor) return false;
   removeHighlights();
   return true;
 }
 
 function onDrop(source, target) {
-  removeHighlights();
+  if (!state.active || state.busy) return 'snapback';
+
+  const fenBefore = game.fen();  // FEN before player's move (what server needs)
   const move = game.move({ from: source, to: target, promotion: 'q' });
   if (move === null) return 'snapback';
 
   highlightMove(source, target);
-  addMoveToHistory(move.san, game.turn() !== (state.playerColor === 'white' ? 'w' : 'b'));
-  updateStatus('thinking');
+  addMoveToHistory(move.san, false);   // false = player's move
+  setBusy(true);
 
   if (game.game_over()) {
+    setBusy(false);
     handleGameOver();
     return;
   }
 
-  // Send to engine
   fetch('/api/move', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fen: game.fen(), move: source + target, elo: state.elo }),
+    body: JSON.stringify({ fen: fenBefore, move: source + target, elo: state.elo }),
   })
-  .then(r => r.json())
+  .then(r => {
+    if (!r.ok) throw new Error('Server error ' + r.status);
+    return r.json();
+  })
   .then(data => {
-    if (data.error) { console.error(data.error); updateStatus('your_turn'); return; }
+    if (data.error) throw new Error(data.error);
 
     game.load(data.fen);
-    board.position(data.fen);
+    board.position(data.fen, true);   // animated slide
 
     if (data.engine_move) {
       const from = data.engine_move.slice(0, 2);
       const to   = data.engine_move.slice(2, 4);
       highlightMove(from, to);
-      // Get SAN for engine move from history
-      const hist = game.history();
-      addMoveToHistory(hist[hist.length - 1], false);
+      // Use engine_san returned from server (game.history() is empty after load())
+      addMoveToHistory(data.engine_san || data.engine_move, true);   // true = engine's move
     }
+
+    setBusy(false);
 
     if (data.game_over) {
       handleGameOver(data.winner, data.reason);
-    } else {
-      updateStatus('your_turn');
     }
   })
-  .catch(err => { console.error(err); updateStatus('your_turn'); });
+  .catch(err => {
+    console.error('Engine error:', err);
+    setBusy(false);
+    updateStatus('error');
+  });
+}
+
+// ── Busy state (engine thinking) ──────────────────────────────────────
+function setBusy(busy) {
+  state.busy = busy;
+  if (busy) {
+    updateStatus('thinking');
+    $('#hintBtn').prop('disabled', true);
+  } else {
+    updateStatus('your_turn');
+    $('#hintBtn').prop('disabled', false);
+  }
 }
 
 // ── Status ────────────────────────────────────────────────────────────
-function updateStatus(state_name) {
+function updateStatus(s) {
   const map = {
     your_turn: 'Your turn',
     thinking:  '<span class="thinking">Engine thinking...</span>',
-    engine:    'Engine\'s turn',
+    error:     '<span class="status-error">Engine error - try again</span>',
+    starting:  'Starting...',
   };
-  $status.html(map[state_name] || state_name);
+  $status.html(map[s] || s);
 }
 
 // ── Move history ──────────────────────────────────────────────────────
@@ -129,25 +152,17 @@ function renderMoveHistory() {
     return;
   }
 
-  let html = '';
   const moves = state.moveHistory;
+  let html = '';
 
-  if (state.playerColor === 'white') {
-    // White = player, Black = engine - pairs: [player, engine]
-    for (let i = 0; i < moves.length; i += 2) {
-      const num   = Math.floor(i / 2) + 1;
-      const white = moves[i]     ? `<span class="move-white">${moves[i].san}</span>` : '';
-      const black = moves[i + 1] ? `<span class="move-black">${moves[i + 1].san}</span>` : '';
-      html += `<div class="move-pair"><span class="move-num">${num}.</span>${white}${black}</div>`;
-    }
-  } else {
-    // Black = player, White = engine - first move is engine's
-    for (let i = 0; i < moves.length; i += 2) {
-      const num   = Math.floor(i / 2) + 1;
-      const white = moves[i]     ? `<span class="move-white">${moves[i].san}</span>` : '';
-      const black = moves[i + 1] ? `<span class="move-black">${moves[i + 1].san}</span>` : '';
-      html += `<div class="move-pair"><span class="move-num">${num}.</span>${white}${black}</div>`;
-    }
+  for (let i = 0; i < moves.length; i += 2) {
+    const num  = Math.floor(i / 2) + 1;
+    const a    = moves[i];
+    const b    = moves[i + 1];
+    // White column = first of pair, Black column = second
+    const wSan = a ? `<span class="move-white">${a.san}</span>` : '';
+    const bSan = b ? `<span class="move-black">${b.san}</span>` : '';
+    html += `<div class="move-pair"><span class="move-num">${num}.</span>${wSan}${bSan}</div>`;
   }
 
   $moveList.html(html);
@@ -157,34 +172,53 @@ function renderMoveHistory() {
 // ── Game Over ─────────────────────────────────────────────────────────
 function handleGameOver(winner, reason) {
   state.active = false;
-  let title = 'Game Over';
-  let sub   = reason ? `by ${reason}` : '';
+  state.busy   = false;
 
+  let title = 'Draw';
   if (winner === 'White') {
-    title = state.playerColor === 'white' ? 'You Win' : 'Engine Wins';
+    title = state.playerColor === 'white' ? 'You Win!' : 'Engine Wins';
   } else if (winner === 'Black') {
-    title = state.playerColor === 'black' ? 'You Win' : 'Engine Wins';
-  } else {
-    title = 'Draw';
+    title = state.playerColor === 'black' ? 'You Win!' : 'Engine Wins';
   }
 
   $modalTitle.text(title);
-  $modalSub.text(sub);
+  $modalSub.text(reason ? `Game ended by ${reason}` : '');
   $modal.removeClass('hidden');
 }
 
-// ── New Game ──────────────────────────────────────────────────────────
+// ── Show setup screen ─────────────────────────────────────────────────
+function showSetup() {
+  state.active = false;
+  state.busy   = false;
+  state.moveHistory = [];
+
+  $modal.addClass('hidden');
+  $ingame.addClass('hidden');
+  $setup.removeClass('hidden');
+
+  renderMoveHistory();
+  game = new Chess();
+  board = Chessboard('chessboard', {
+    position:   'start',
+    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+    orientation: 'white',
+  });
+}
+
+// ── Start Game ────────────────────────────────────────────────────────
 function startGame() {
-  state.elo         = parseInt($('.elo-btn.active').data('elo'), 10);
-  state.playerColor = $('.color-btn.active').data('color');
+  state.elo         = parseInt($('.elo-btn.active').data('elo'), 10) || 1600;
+  state.playerColor = $('.color-btn.active').data('color') || 'white';
   state.moveHistory = [];
   state.active      = false;
+  state.busy        = false;
 
   renderMoveHistory();
   $modal.addClass('hidden');
-  $ingame.removeClass('hidden');
+  $setup.addClass('hidden');            // Hide difficulty/color/start during game
+  $ingame.removeClass('hidden');        // Show status/hint/new-game during game
   $eloDisplay.text(`ELO ${state.elo} - Playing as ${state.playerColor}`);
-  updateStatus('your_turn');
+  updateStatus('starting');
 
   board = Chessboard('chessboard', boardConfig());
   game  = new Chess();
@@ -194,23 +228,38 @@ function startGame() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ elo: state.elo, color: state.playerColor }),
   })
-  .then(r => r.json())
+  .then(r => {
+    if (!r.ok) throw new Error('Server error ' + r.status);
+    return r.json();
+  })
   .then(data => {
+    if (data.error) throw new Error(data.error);
+
     game.load(data.fen);
     board.position(data.fen);
     state.active = true;
 
     if (data.engine_move) {
-      const hist = game.history();
-      addMoveToHistory(hist[hist.length - 1], true);
-      updateStatus('your_turn');
+      // Engine moved first (player plays black)
+      const from = data.engine_move.slice(0, 2);
+      const to   = data.engine_move.slice(2, 4);
+      highlightMove(from, to);
+      // Use engine_san from server — game.history() is empty after load()
+      addMoveToHistory(data.engine_san || data.engine_move, true);
     }
+
+    updateStatus('your_turn');
+  })
+  .catch(err => {
+    console.error('Start game error:', err);
+    updateStatus('error');
   });
 }
 
 // ── Hint ──────────────────────────────────────────────────────────────
 $('#hintBtn').on('click', () => {
-  if (!state.active) return;
+  if (!state.active || state.busy) return;
+  $('#hintBtn').prop('disabled', true);
   fetch('/api/hint', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -219,7 +268,9 @@ $('#hintBtn').on('click', () => {
   .then(r => r.json())
   .then(data => {
     if (data.hint) showHint(data.hint.slice(0, 2));
-  });
+    $('#hintBtn').prop('disabled', false);
+  })
+  .catch(() => { $('#hintBtn').prop('disabled', false); });
 });
 
 // ── Event Listeners ───────────────────────────────────────────────────
@@ -234,14 +285,15 @@ $('.color-toggle').on('click', '.color-btn', function() {
 });
 
 $('#startBtn').on('click', startGame);
-$('#newGameBtn').on('click', startGame);
-$('#modalNewGame').on('click', startGame);
+$('#newGameBtn').on('click', showSetup);    // "New Game" during game -> back to setup
+$('#modalNewGame').on('click', startGame);  // "Play Again" modal -> restart same settings
+$('#modalSetup').on('click', showSetup);    // "Change Settings" modal -> back to setup
 
 // ── Init ──────────────────────────────────────────────────────────────
 $(function() {
   board = Chessboard('chessboard', {
-    position:    'start',
-    pieceTheme:  'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+    position:   'start',
+    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
     orientation: 'white',
   });
 });
