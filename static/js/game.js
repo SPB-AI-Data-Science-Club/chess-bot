@@ -190,14 +190,14 @@ function setBusy(busy) {
 
 // ── ELO slider ────────────────────────────────────────────────────────
 const ELO_TIERS = [
-  [400,  'Just Learning',  'Mostly random moves. A fun first opponent.'],
-  [800,  'Casual',         'Knows the rules, blunders often.'],
-  [1200, 'Improver',       'Solid basics with frequent mistakes.'],
-  [1600, 'Club Player',    'Calibrated engine strength. A real fight.'],
-  [2000, 'Tournament',     'Punishes inaccuracies quickly.'],
-  [2400, 'Master',         'Near-flawless play.'],
-  [3000, 'Grandmaster',    'Only the engine\'s rare slips give you chances.'],
-  [3600, 'Full Strength',  'The limiter is off. Good luck.'],
+  [400,  'Beginner',       'Most moves are selected randomly at this level.'],
+  [800,  'Casual',         'The engine makes frequent inaccuracies and occasional blunders.'],
+  [1200, 'Improver',       'Reasonable moves with regular mistakes.'],
+  [1600, 'Club Player',    'Calibrated engine strength typical of a club player.'],
+  [2000, 'Tournament',     'Strong play that punishes inaccuracies.'],
+  [2400, 'Master',         'Very few mistakes at this level.'],
+  [3000, 'Grandmaster',    'Close to the engine\'s full playing strength.'],
+  [3600, 'Full Strength',  'No strength limit is applied.'],
 ];
 
 function eloTier(elo) {
