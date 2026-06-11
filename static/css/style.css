@@ -299,7 +299,7 @@ body {
   overflow-y: auto;
 }
 
-.no-moves { color: var(--text-muted); font-style: italic; font-family: 'Public Sans', sans-serif; }
+.no-moves { color: var(--text-muted); font-family: 'Public Sans', sans-serif; }
 
 .move-pair {
   display: grid;
@@ -347,7 +347,7 @@ body {
 
 /* ── Status indicators ──────────────────────────────────────────────── */
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
-.thinking     { color: var(--burgundy-l); font-style: italic; animation: pulse 1s ease-in-out infinite; }
+.thinking     { color: var(--burgundy-l); animation: pulse 1s ease-in-out infinite; }
 .status-error { color: #f87171; font-size: .85rem; }
 
 
