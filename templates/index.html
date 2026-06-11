@@ -8,14 +8,14 @@
   <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=7" />
   <style id="gpu-status-css">
-  .gpu-status-pill{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .7rem;border-radius:999px;border:1px solid #2a2a2a;background:#181818;font-size:.72rem;font-weight:600;letter-spacing:.03em;cursor:default;white-space:nowrap}
-  .gpu-status-pill .gd{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:#444}
+  .gpu-status-pill{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .7rem;border-radius:999px;border:1px solid #2c3b5e;background:#141f36;font-size:.72rem;font-weight:600;letter-spacing:.03em;cursor:default;white-space:nowrap}
+  .gpu-status-pill .gd{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:#3d4d6e}
   .gpu-status-pill .gd.ready{background:#4ade80;box-shadow:0 0 5px #4ade8077;animation:gpuGlow 2s ease-in-out infinite}
   .gpu-status-pill .gd.busy{background:#fbbf24;box-shadow:0 0 5px #fbbf2477;animation:gpuGlow 1s ease-in-out infinite}
-  .gpu-status-pill .gt{color:#555}
+  .gpu-status-pill .gt{color:#5d6f8f}
   .gpu-status-pill .gt.ready{color:#4ade80}
   .gpu-status-pill .gt.busy{color:#fbbf24}
   @keyframes gpuGlow{0%,100%{opacity:1}50%{opacity:.35}}
@@ -29,13 +29,13 @@
     .rotate-hint.dismissed{display:none}
     .rotate-hint svg{animation:rotateBob 2.4s ease-in-out infinite}
     @keyframes rotateBob{0%,100%{transform:rotate(0)}50%{transform:rotate(90deg)}}
-    .rotate-hint-title{font-size:1.1rem;font-weight:800;color:#ebebeb}
-    .rotate-hint-sub{font-size:.85rem;color:#999;line-height:1.6;max-width:300px}
-    .rotate-hint-btn{margin-top:.4rem;padding:.6rem 1.4rem;background:#660033;color:#fff;border:none;border-radius:8px;font-size:.85rem;font-weight:600;font-family:inherit;cursor:pointer}
+    .rotate-hint-title{font-size:1.1rem;font-weight:800;color:#e9eef8}
+    .rotate-hint-sub{font-size:.85rem;color:#9fb0cb;line-height:1.6;max-width:300px}
+    .rotate-hint-btn{margin-top:.4rem;padding:.6rem 1.4rem;background:#3f74d4;color:#fff;border:none;border-radius:8px;font-size:.85rem;font-weight:600;font-family:inherit;cursor:pointer}
   }
   </style>
   <div class="rotate-hint" id="rotateHint">
-    <svg width="44" height="64" viewBox="0 0 24 36" fill="none" stroke="#8b0044" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="2" width="18" height="32" rx="3"/><line x1="9" y1="30" x2="15" y2="30"/></svg>
+    <svg width="44" height="64" viewBox="0 0 24 36" fill="none" stroke="#6494e8" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="2" width="18" height="32" rx="3"/><line x1="9" y1="30" x2="15" y2="30"/></svg>
     <div class="rotate-hint-title">This one works best in landscape</div>
     <div class="rotate-hint-sub">Rotate your phone sideways for the full board, or continue anyway in portrait.</div>
     <button class="rotate-hint-btn" onclick="document.getElementById('rotateHint').classList.add('dismissed')">Continue in portrait</button>
